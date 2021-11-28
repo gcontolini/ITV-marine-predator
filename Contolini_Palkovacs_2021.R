@@ -21,15 +21,15 @@ se = function(x){
    sd(x) / sqrt(length(x))
 }
 #### Load data ####
-setwd(file.choose()) 
+# setwd(file.choose()) 
 ## mussel data
-mussel.data <- read.csv('mussel.lengths.csv')
+mussel.data <- read.csv('Contolini_Palkovacs_mussel_data.csv')
 ## dogwhelk data
-dogwhelk.data <- read.csv('dogwhelk.lengths.csv')
+dogwhelk.data <- read.csv('Contolini_Palkovacs_dogwhelk_data.csv')
 ## algae cover
 algae.data <- read.csv('algae.cover.csv')
 
-## model data
+## model data ## This will be deleted bc I will create it using the raw data.
 model.data <- read.csv('Contolini_Palkovacs_model_data.csv')
 ## community data
 comm.data <-  read.csv('Contolini_Palkovacs_community_data.csv')
@@ -50,6 +50,24 @@ plot.theme <- theme(
    plot.title = element_text(size=15),
    legend.key=element_blank()
 )
+
+#### Summarize mussel data ####
+test.mussel <- mussel.data %>%
+   filter(drilled = TRUE) %>%
+   group_by(plot, trtmnt) %>%
+   summarise(drilled.mean = mean(mussel.length, na.rm = TRUE), .groups = 'drop')
+
+#### Summarize dogwhelk data ####
+test.dogwhelk <- dogwhelk.data %>%
+   filter(!notes == 'shell only') %>% # remove this value because it wasn't a snail
+   group_by(cage, site) %>%
+   rename(plot = cage, trtmnt = site) %>%
+   summarise(mean.end.len = mean(end.length, na.rm = T)
+           , mean.start.len = mean(start.length, na.rm = T), .groups = 'drop')
+
+#### Summarize algae cover data ####
+algae.data <- read.csv('Contolini_Palkovacs_algae_data.csv')
+
 #### Calculate Shannon-Wiener diversity ####
 # Copy comm to modify it
 comm.for.model <- comm.data
