@@ -22,17 +22,7 @@ se = function(x){
 }
 #### Load data ####
 # setwd(file.choose()) 
-## mussel data
-mussel.data <- read.csv('Contolini_Palkovacs_mussel_data.csv')
-## dogwhelk data
-dogwhelk.data <- read.csv('Contolini_Palkovacs_dogwhelk_data.csv')
-## algae cover
-algae.data <- read.csv('algae.cover.csv')
 
-## model data ## This will be deleted bc I will create it using the raw data.
-model.data <- read.csv('Contolini_Palkovacs_model_data.csv')
-## community data
-comm.data <-  read.csv('Contolini_Palkovacs_community_data.csv')
 #### Create plot theme ####
 plot.theme <- theme( 
    panel.background = element_blank(), 
@@ -51,12 +41,61 @@ plot.theme <- theme(
    legend.key=element_blank()
 )
 
-#### Summarize mussel data ####
-test.mussel <- mussel.data %>%
-   filter(drilled = TRUE) %>%
-   group_by(plot, trtmnt) %>%
-   summarise(drilled.mean = mean(mussel.length, na.rm = TRUE), .groups = 'drop')
+#### Read in csvs of data ####
+## community data
+comm_data <-  read.csv('Contolini_Palkovacs_community_data.csv')
+## mussel data
+mussel_data <- read.csv('Contolini_Palkovacs_mussel_data.csv') %>% 
+   filter(!trtmnt == 'NCC') %>% # remove this trtmnt bc it is not used in this analysis
+   mutate(trtmnt = ifelse(trtmnt == 'CC', 'Control', trtmnt)) # rename CC to Control
+## dogwhelk data
+dogwhelk_data <- read.csv('Contolini_Palkovacs_dogwhelk_data.csv')
+## algae cover
+algae_data <- read.csv('algae.cover.csv')
+## model data ## This will be deleted bc I will create it using the raw data.
+model_data <- read.csv('Contolini_Palkovacs_model_data.csv')
 
+##########******** 
+
+#### Summarize mussel data ####
+# Drilled mussels
+drilled_mussel_sum <- mussel_data %>% 
+   filter(drilled == TRUE) %>% # only drilled mussels (loose or not)
+   filter(!is.na(mussel.length)) %>% #remove na values 
+   group_by(plot, trtmnt) %>%
+   summarise(drilled.mean = mean(mussel.length)
+           , drilled.n    = n()
+           , drilled.min  = min(mussel.length)
+           , drilled.max  = max(mussel.length)
+           , drilled.sd   = sd(mussel.length)
+           , drilled.se   = se(mussel.length)
+           , drilled.90th = quantile(mussel.length, prob = .9)
+         , .groups = 'drop')
+
+# Remaining mussels
+remain_mussel_sum <- mussel_data %>% 
+   filter(drilled == FALSE & loose == FALSE) %>% # only remaining mussels not drilled
+   filter(!is.na(mussel.length)) %>% #remove na values 
+   group_by(plot, trtmnt) %>%
+   summarise(  remain.mean = mean(mussel.length)
+             , remain.n    = n()
+             , remain.min  = min(mussel.length)
+             , remain.max  = max(mussel.length)
+             , remain.sd   = sd(mussel.length)
+             , remain.se   = se(mussel.length)
+             , remain.90th = quantile(mussel.length, .9)
+             , .groups = 'drop')
+# Loose mussels
+loose_mussel_sum <- mussel_data %>%
+   filter(loose == TRUE) %>% # only loose mussels. culd be drilled
+   filter(!is.na(mussel.length)) %>% # remove na values
+   group_by(plot, trtmnt) %>%
+   summarise(loose.mean = mean(mussel.length)
+           , loose.n    = n()
+           , loose.sd   = sd(mussel.length)
+           , loose.se   = sd(mussel.length)
+           , .groups = 'drop')
+          
 #### Summarize dogwhelk data ####
 test.dogwhelk <- dogwhelk.data %>%
    filter(!notes == 'shell only') %>% # remove this value because it wasn't a snail
@@ -79,8 +118,12 @@ comm.for.model$trtmnt <- NULL
 # Compute Shannon-Wiener diversity
 shannon <- diversity(comm.for.model, index = 'shannon') 
 
-# Add community data to treatment and mussel data
-model.data$shannon <- shannon
+#### Build model dataset using above summarized data ####
+model_data_2 <- drilled_mussel_sum %>%
+   left_join(remain_mussel_sum) %>%
+   left_join(loose_mussel_sum)
+
+model_data$shannon <- shannon
 
 #### Piecewise structural equation model ####
 summary(psem(
