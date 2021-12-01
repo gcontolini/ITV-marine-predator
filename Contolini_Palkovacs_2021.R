@@ -41,23 +41,24 @@ plot.theme <- theme(
    legend.key=element_blank()
 )
 
-#### Read in csvs of data ####
-## community data
+#### Read in raw data ####
+# community data
 comm_data <-  read.csv('Contolini_Palkovacs_community_data.csv')
-## mussel data
-mussel_data <- read.csv('Contolini_Palkovacs_mussel_data.csv') %>% 
-   filter(!trtmnt == 'NCC') %>% # remove this trtmnt bc it is not used in this analysis
-   mutate(trtmnt = ifelse(trtmnt == 'CC', 'Control', trtmnt)) # rename CC to Control
-## dogwhelk data
+# mussel data
+mussel_data <- read.csv('Contolini_Palkovacs_mussel_data.csv')
+# dogwhelk data
 dogwhelk_data <- read.csv('Contolini_Palkovacs_dogwhelk_data.csv')
-## algae cover
-algae_data <- read.csv('algae.cover.csv')
-## model data ## This will be deleted bc I will create it using the raw data.
-model_data <- read.csv('Contolini_Palkovacs_model_data.csv')
+# algae cover
+algae_data <- read.csv('Contolini_Palkovacs_algae_data.csv')
 
-##########******** 
+# model data # This will be deleted bc I will create it using the raw data.
+model_data <- read.csv('Contolini_Palkovacs_model_data.csv') ###!!! mean dogwhelk length here is actually mean mussel length of ALL mussels combined! Good thing I'm not using that!
 
 #### Summarize mussel data ####
+mussel_data <- mussel_data  %>% 
+   filter(!trtmnt == 'NCC') %>% # remove this trtmnt bc it is not used in this analysis
+   mutate(trtmnt = ifelse(trtmnt == 'CC', 'Control', trtmnt)) # rename CC to Control
+
 # Drilled mussels
 drilled_mussel_sum <- mussel_data %>% 
    filter(drilled == TRUE) %>% # only drilled mussels (loose or not)
@@ -87,7 +88,7 @@ remain_mussel_sum <- mussel_data %>%
              , .groups = 'drop')
 # Loose mussels
 loose_mussel_sum <- mussel_data %>%
-   filter(loose == TRUE) %>% # only loose mussels. culd be drilled
+   filter(loose == TRUE) %>% # only loose mussels. could be drilled
    filter(!is.na(mussel.length)) %>% # remove na values
    group_by(plot, trtmnt) %>%
    summarise(loose.mean = mean(mussel.length)
@@ -97,32 +98,40 @@ loose_mussel_sum <- mussel_data %>%
            , .groups = 'drop')
           
 #### Summarize dogwhelk data ####
-test.dogwhelk <- dogwhelk.data %>%
+dogwhelk_sum <- dogwhelk_data %>%
    filter(!notes == 'shell only') %>% # remove this value because it wasn't a snail
    group_by(cage, site) %>%
-   rename(plot = cage, trtmnt = site) %>%
-   summarise(mean.end.len = mean(end.length, na.rm = T)
-           , mean.start.len = mean(start.length, na.rm = T), .groups = 'drop')
+   rename(plot = cage, trtmnt = site) %>% # rename cols to match other dataframes
+   summarise(dogwhelk.start.mean = mean(start.length, na.rm = T)
+           , dogwhelk.end.mean = mean(end.length, na.rm = T)
+           , .groups = 'drop')
 
 #### Summarize algae cover data ####
-algae.data <- read.csv('Contolini_Palkovacs_algae_data.csv')
+algae_data <- algae_data %>%
+   rename(algae.perc = Plot.Total...Algae, plot = Plot.ID) %>% # rename percent algae col
+   subset(select = c(plot, Week, algae.perc)) %>% # select only relevant cols
+   filter(Week == 40) %>% # only the last week; the final algal coverage
+   filter(!is.na(algae.perc) & !plot %in% c('NC01','NC02','NC03','NC04','NC05','NC06')) # remove na values and unused NC treatment
+algae_data$Week = NULL # remove week col
 
 #### Calculate Shannon-Wiener diversity ####
 # Copy comm to modify it
-comm.for.model <- comm.data
+comm_data_model <- comm_data 
 # Make row names each cage ID
-rownames(comm.for.model) <- comm.for.model$cage 
+rownames(comm_data_model) <- comm_data_model$cage 
 # Remove column of cage IDs and trtmnts because all cells must be numeric
-comm.for.model$cage <- NULL
-comm.for.model$trtmnt <- NULL
+comm_data_model$cage <- NULL
+comm_data_model$trtmnt <- NULL
 # Compute Shannon-Wiener diversity
-shannon <- diversity(comm.for.model, index = 'shannon') 
+shannon <- diversity(comm_data_model, index = 'shannon') 
 
 #### Build model dataset using above summarized data ####
-model_data_2 <- drilled_mussel_sum %>%
-   left_join(remain_mussel_sum) %>%
-   left_join(loose_mussel_sum)
-
+model_data_2 <- drilled_mussel_sum %>% 
+   full_join(remain_mussel_sum) %>%
+   full_join(loose_mussel_sum) %>%
+   full_join(dogwhelk_sum) %>%
+   full_join(algae_data)
+as.data.frame(model_data_2)
 model_data$shannon <- shannon
 
 #### Piecewise structural equation model ####
