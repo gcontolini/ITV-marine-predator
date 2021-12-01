@@ -6,7 +6,7 @@
 
 # Corresponding author: Gina Contolini. Email: gina@contolini.com
 
-# Updated 26 Nov 2021
+# Updated 30 Nov 2021
 
 #### Load packages ####
 library(car) # companion to applied regression
@@ -20,8 +20,6 @@ library(dplyr) # data manipulation
 se = function(x){
    sd(x) / sqrt(length(x))
 }
-#### Load data ####
-# setwd(file.choose()) 
 
 #### Create plot theme ####
 plot.theme <- theme( 
@@ -42,6 +40,8 @@ plot.theme <- theme(
 )
 
 #### Read in raw data ####
+# set working directory to wherever you have saved the raw data files
+setwd(file.choose()) 
 # community data
 comm_data <-  read.csv('Contolini_Palkovacs_community_data.csv')
 # mussel data
@@ -50,9 +50,6 @@ mussel_data <- read.csv('Contolini_Palkovacs_mussel_data.csv')
 dogwhelk_data <- read.csv('Contolini_Palkovacs_dogwhelk_data.csv')
 # algae cover
 algae_data <- read.csv('Contolini_Palkovacs_algae_data.csv')
-
-# model data # This will be deleted bc I will create it using the raw data.
-model_data <- read.csv('Contolini_Palkovacs_model_data.csv') ###!!! mean dogwhelk length here is actually mean mussel length of ALL mussels combined! Good thing I'm not using that!
 
 #### Summarize mussel data ####
 mussel_data <- mussel_data  %>% 
@@ -70,12 +67,11 @@ drilled_mussel_sum <- mussel_data %>%
            , drilled.max  = max(mussel.length)
            , drilled.sd   = sd(mussel.length)
            , drilled.se   = se(mussel.length)
-           , drilled.90th = quantile(mussel.length, prob = .9)
          , .groups = 'drop')
 
 # Remaining mussels
 remain_mussel_sum <- mussel_data %>% 
-   filter(drilled == FALSE & loose == FALSE) %>% # only remaining mussels not drilled
+   filter(drilled == FALSE | loose == FALSE) %>% # only remaining mussels not drilled or not loose
    filter(!is.na(mussel.length)) %>% #remove na values 
    group_by(plot, trtmnt) %>%
    summarise(  remain.mean = mean(mussel.length)
@@ -84,7 +80,7 @@ remain_mussel_sum <- mussel_data %>%
              , remain.max  = max(mussel.length)
              , remain.sd   = sd(mussel.length)
              , remain.se   = se(mussel.length)
-             , remain.90th = quantile(mussel.length, .9)
+             , remain.90th = quantile(mussel.length, prob = .9)
              , .groups = 'drop')
 # Loose mussels
 loose_mussel_sum <- mussel_data %>%
@@ -125,39 +121,38 @@ comm_data_model$trtmnt <- NULL
 # Compute Shannon-Wiener diversity
 shannon <- diversity(comm_data_model, index = 'shannon') 
 
-#### Build model dataset using above summarized data ####
-model_data_2 <- drilled_mussel_sum %>% 
+#### Build the model dataset using above summarized data ####
+model_data <- drilled_mussel_sum %>% 
    full_join(remain_mussel_sum) %>%
    full_join(loose_mussel_sum) %>%
    full_join(dogwhelk_sum) %>%
    full_join(algae_data)
-as.data.frame(model_data_2)
-model_data$shannon <- shannon
+model_data$shannon <- shannon # add shannon diversity to model data frame
 
 #### Piecewise structural equation model ####
 summary(psem(
-     lm(drilled.mean ~ trtmnt,                         data = model.data)
-   , lm(remain.90th ~ drilled.mean + trtmnt,           data = model.data)
-   , lm(shannon ~ remain.90th + drilled.mean + trtmnt, data = model.data) )
+     lm(drilled.mean ~ trtmnt,                         data = model_data)
+   , lm(remain.90th ~ drilled.mean + trtmnt,           data = model_data)
+   , lm(shannon ~ remain.90th + drilled.mean + trtmnt, data = model_data) )
 ) 
 
 #### Similarity Percentages (SIMPER) ####
 ## first two cols are ID cols; exclude them in the simper analysis.
-comm.trtmnts <- comm.data$trtmnt
-summary(simper(comm.data[,3:42], comm.trtmnts))
+comm_trtmnts <- comm_data$trtmnt
+summary(simper(comm_data[,3:42], comm_trtmnts))
 
 #### Figure 2 ####
 ## Figure 2a differences in mussel bed structure.
-drill.mean <- model.data %>%
+drill_mean <- model_data %>%
    group_by(trtmnt) %>%
    summarise(trtmnt.mean = mean(drilled.mean), sd = sd(drilled.mean), se = se(drilled.mean), n = n(), .groups = 'drop') # note all values are rounded.
 
 ## order factor levels for trtmnt
-drill.mean$trtmnt <- factor(drill.mean$trtmnt, levels = c('Control','HOP','SOB','LOM'))
-drill.mean.se <- aes(ymin = trtmnt.mean - se, ymax = trtmnt.mean + se)
+drill_mean$trtmnt <- factor(drill_mean$trtmnt, levels = c('Control','HOP','SOB','LOM'))
+drill_mean_se <- aes(ymin = trtmnt.mean - se, ymax = trtmnt.mean + se)
 
-fig.2a <- ggplot(drill.mean, aes(x = trtmnt, y = trtmnt.mean, color = trtmnt, shape = trtmnt)) +
-   geom_errorbar(drill.mean.se, width = 0) +
+fig.2a <- ggplot(drill_mean, aes(x = trtmnt, y = trtmnt.mean, color = trtmnt, shape = trtmnt)) +
+   geom_errorbar(drill_mean_se, width = 0) +
    geom_point(size = 5) +
    annotate(x = 0.6, y = 43, 'text', label = 'a', size = 9) +
    scale_y_continuous(limits = c(0,45), expand = c(0,0)) +
@@ -167,15 +162,15 @@ fig.2a <- ggplot(drill.mean, aes(x = trtmnt, y = trtmnt.mean, color = trtmnt, sh
    plot.theme + theme(legend.position = 'none')
 
 ## Figure 2b. differences in remaining mussel length (90 percentile)
-remain.90 <- model.data %>%
+remain_90 <- model_data %>%
    group_by(trtmnt) %>%
    summarise(mean.remain.90th = mean(remain.90th), sd = sd(remain.90th), se = se(remain.90th), n = n(), .groups = 'drop')
    
 ## order factor levels for trtmnt
-remain.90$trtmnt <- factor(remain.90$trtmnt, levels = c('Control','HOP','SOB','LOM'))
-remain.90.se <- aes(ymin = mean.remain.90th - se, ymax = mean.remain.90th + se)
-fig.2b <- ggplot(remain.90, aes(x = trtmnt, y = mean.remain.90th, color = trtmnt, shape = trtmnt)) + 
-   geom_errorbar(remain.90.se, width = 0) +
+remain_90$trtmnt <- factor(remain_90$trtmnt, levels = c('Control','HOP','SOB','LOM'))
+remain_90_se <- aes(ymin = mean.remain.90th - se, ymax = mean.remain.90th + se)
+fig.2b <- ggplot(remain_90, aes(x = trtmnt, y = mean.remain.90th, color = trtmnt, shape = trtmnt)) + 
+   geom_errorbar(remain_90_se, width = 0) +
    geom_point(size = 5) +
    annotate(x = 0.6, y = 60, 'text', label = 'b', size = 9) +
    scale_color_manual(values = c("Control" = "grey50", "LOM" = "goldenrod3", "SOB" = 'maroon', 'HOP' = 'dodgerblue3')) +
@@ -184,25 +179,25 @@ fig.2b <- ggplot(remain.90, aes(x = trtmnt, y = mean.remain.90th, color = trtmnt
    plot.theme + theme(legend.position = 'none', axis.title.y = element_text(margin = margin(t = 0, r = 2, b = 0, l = 0)))
    
 ## Figure 2c. NMDS plot
-comm.mds1 <- metaMDS(subset(comm.data, select=-c(cage, trtmnt)), distance = 'bray')
+comm_mds <- metaMDS(subset(comm_data, select = -c(cage, trtmnt)), distance = 'bray')
 ### extract NMDS scores (x and y coordinates)
-data.scores <- as.data.frame(scores(comm.mds1))
+data_scores <- as.data.frame(scores(comm_mds))
 ### add metadata
-data.scores$trtmnt <- model.data$trtmnt
+data_scores$trtmnt <- model_data$trtmnt
 ### create hulls
-trtmnt.Control <- data.scores[data.scores$trtmnt == "Control", ][chull(data.scores[data.scores$trtmnt == 
+trtmnt_Control <- data_scores[data_scores$trtmnt == "Control", ][chull(data_scores[data_scores$trtmnt == 
                                                                             "Control", c("NMDS1", "NMDS2")]), ]  # hull values for trtmnt Control
-trtmnt.LOM <- data.scores[data.scores$trtmnt == "LOM", ][chull(data.scores[data.scores$trtmnt == 
+trtmnt_LOM <- data_scores[data_scores$trtmnt == "LOM", ][chull(data_scores[data_scores$trtmnt == 
                                                                               "LOM", c("NMDS1", "NMDS2")]), ]  # hull values for trtmnt LOM
-trtmnt.SOB <- data.scores[data.scores$trtmnt == "SOB", ][chull(data.scores[data.scores$trtmnt == 
+trtmnt_SOB <- data_scores[data_scores$trtmnt == "SOB", ][chull(data_scores[data_scores$trtmnt == 
                                                                               "SOB", c("NMDS1", "NMDS2")]), ]  # hull values for trtmnt SOB
-trtmnt.HOP <- data.scores[data.scores$trtmnt == "HOP", ][chull(data.scores[data.scores$trtmnt == 
+trtmnt_HOP <- data_scores[data_scores$trtmnt == "HOP", ][chull(data_scores[data_scores$trtmnt == 
                                                                               "HOP", c("NMDS1", "NMDS2")]), ]  # hull values for trtmnt HOP
 ### combine hulls
-hull.data <- rbind(trtmnt.Control, trtmnt.LOM, trtmnt.SOB, trtmnt.HOP)  
+hull_data <- rbind(trtmnt_Control, trtmnt_LOM, trtmnt_SOB, trtmnt_HOP)  
 ### create mds plot
-fig.2c <- ggplot(data.scores, aes(x = NMDS1, y = NMDS2, color = trtmnt, shape = trtmnt)) + 
-   geom_polygon(data = hull.data, fill = NA, aes(x = NMDS1, y = NMDS2, group = trtmnt), alpha = 0.30) + # add the convex hulls
+fig.2c <- ggplot(data_scores, aes(x = NMDS1, y = NMDS2, color = trtmnt, shape = trtmnt)) + 
+   geom_polygon(data = hull_data, fill = NA, aes(x = NMDS1, y = NMDS2, group = trtmnt), alpha = 0.30) + # add the convex hulls
    geom_point(size = 5) + 
    scale_color_manual(name = "Treatment",
                       labels = c('Control','LOM','SOB','HOP'),
@@ -220,30 +215,31 @@ Figure.2 <- ggarrange(fig.2a, fig.2b, fig.2c, nrow = 1, ncol = 3)
 ggsave('Figure.2.jpeg', device = 'jpeg', width = 12, height = 4, dpi = 300) 
 
 #### Starting dogwhelk length ANOVA ####
-data.noctrl <- model.data[-which(model.data$trtmnt == 'Control'),] # remove control group
+data_noctrl <- model_data[-which(model_data$trtmnt == 'Control'),] # remove control group
 par(mfrow=c(2,2))
-plot(lm(data.noctrl$mean.dogwhelk.len ~ data.noctrl$trtmnt)) # check for normality and homoscedasticity
-Anova(aov(mean.dogwhelk.len ~ trtmnt, data = data.noctrl), type = 2) # no differences in starting length among populations
+plot(lm(data_noctrl$dogwhelk.start.mean ~ data_noctrl$trtmnt)) # check for normality and homoscedasticity
+Anova(aov(dogwhelk.start.mean ~ trtmnt, data = data_noctrl), type = 2) # no differences in starting length among populations
+
 #### Number of mussels drilled among treatments ANOVA ####
-shapiro.test(model.data$N.drilled) # normal
-Anova(aov(N.drilled ~ trtmnt, data = model.data)) # differences in the number of mussels drilled
-TukeyHSD(aov(N.drilled ~ trtmnt, data = model.data))
+shapiro.test(model_data$drilled.n) # normal
+Anova(aov(drilled.n ~ trtmnt, data = model_data)) # differences in the number of mussels drilled
+TukeyHSD(aov(drilled.n ~ trtmnt, data = model_data))
 
 #### Drilled mussel length ANOVA ####
-Anova(aov(drilled.mean ~ trtmnt, data = model.data)) # differences in drilled mussel length
-TukeyHSD(aov(drilled.mean ~ trtmnt, data = model.data))
+Anova(aov(drilled.mean ~ trtmnt, data = model_data)) # differences in drilled mussel length
+TukeyHSD(aov(drilled.mean ~ trtmnt, data = model_data))
 
 #### Linear relationship between mean drilled mussel length and 90th remaining mussel length ####
-summary(lm(remain.90th ~ drilled.mean, data = model.data))
-ggplot(model.data, aes(x = drilled.mean, y = remain.90th)) +
+summary(lm(remain.90th ~ drilled.mean, data = model_data))
+ggplot(model_data, aes(x = drilled.mean, y = remain.90th)) +
    geom_smooth(method = 'lm', color = 'black') +
    geom_point() +
    labs(x = 'Mean drilled mussel length (mm)', y = '90th percentile remaining\nmussel length (mm)') +
    plot.theme
    
 #### Linear relationship between remaining mussel length and Shannon diversity ###
-summary(lm(remain.90th ~ shannon, data = model.data))
-ggplot(model.data, aes(x = remain.90th, y = shannon)) +
+summary(lm(remain.90th ~ shannon, data = model_data))
+ggplot(model_data, aes(x = remain.90th, y = shannon)) +
    geom_smooth(method = 'lm', color = 'black') +
    geom_point() +
    labs(x = '90th percentile remaining mussel length (mm)', y = 'Shannon-Wiener diversity') +
