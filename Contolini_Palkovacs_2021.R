@@ -1,4 +1,4 @@
-# Intraspecific variation in a marine predator shapes community diversity by altering foundation species
+# Intraspecific variation in a marine predator shapes community diversity through effects on foundation species
 
 # Gina M. Contolini and Eric. P. Palkovacs
 
@@ -43,13 +43,15 @@ plot.theme <- theme(
 # set working directory to wherever you have saved the raw data files
 setwd(file.choose()) 
 # community data
+## Biomass in g of organisms identified in the mussel bed matrix within experimental cages.
+## Also includes percent cover of algae in each experimental cage as measured from photographs of experimental cages. Calculated using ImageJ image analysis software.
 comm_data <-  read.csv('Contolini_Palkovacs_community_data.csv')
 # mussel data
+## Length in mm of drilled, loose, and remaining mussels from experimental cages
 mussel_data <- read.csv('Contolini_Palkovacs_mussel_data.csv')
 # dogwhelk data
+## Length in mm and mass in g of dogwhelks used in each experimental cage. Also indicates if they died or were replaced.
 dogwhelk_data <- read.csv('Contolini_Palkovacs_dogwhelk_data.csv')
-# algae cover
-algae_data <- read.csv('Contolini_Palkovacs_algae_data.csv')
 
 #### Summarize mussel data ####
 mussel_data <- mussel_data  %>% 
@@ -102,14 +104,6 @@ dogwhelk_sum <- dogwhelk_data %>%
            , dogwhelk.end.mean = mean(end.length, na.rm = T)
            , .groups = 'drop')
 
-#### Summarize algae cover data ####
-algae_data <- algae_data %>%
-   rename(algae.perc = Plot.Total...Algae, plot = Plot.ID) %>% # rename percent algae col
-   subset(select = c(plot, Week, algae.perc)) %>% # select only relevant cols
-   filter(Week == 40) %>% # only the last week; the final algal coverage
-   filter(!is.na(algae.perc) & !plot %in% c('NC01','NC02','NC03','NC04','NC05','NC06')) # remove na values and unused NC treatment
-algae_data$Week = NULL # remove week col
-
 #### Calculate Shannon-Wiener diversity ####
 # Copy comm to modify it
 comm_data_model <- comm_data 
@@ -125,8 +119,7 @@ shannon <- diversity(comm_data_model, index = 'shannon')
 model_data <- drilled_mussel_sum %>% 
    full_join(remain_mussel_sum) %>%
    full_join(loose_mussel_sum) %>%
-   full_join(dogwhelk_sum) %>%
-   full_join(algae_data)
+   full_join(dogwhelk_sum) 
 model_data$shannon <- shannon # add shannon diversity to model data frame
 
 #### Piecewise structural equation model ####
