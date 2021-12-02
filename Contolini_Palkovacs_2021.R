@@ -41,7 +41,7 @@ plot.theme <- theme(
 
 #### Read in raw data ####
 # set working directory to wherever you have saved the raw data files
-setwd(file.choose()) 
+setwd("~/downloads") # probably your downloads folder. Use \ for Windows machine.
 # community data
 ## Biomass in g of organisms identified in the mussel bed matrix within experimental cages.
 ## Also includes percent cover of algae in each experimental cage as measured from photographs of experimental cages. Calculated using ImageJ image analysis software.
