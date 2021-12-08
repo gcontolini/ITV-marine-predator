@@ -6,16 +6,20 @@
 
 # Corresponding author: Gina Contolini. Email: gina@contolini.com
 
-# Updated 30 Nov 2021
+# Updated 4 Dec 2021
 
-#### Load packages ####
-library(car) # companion to applied regression
-library(ggplot2) # plotting
-library(ggpubr) # plot aesthetics
-library(piecewiseSEM) # structural equation modeling
-library(vegan) # community ecology package
-library(tidyr) # data manipulation
-library(dplyr) # data manipulation
+#### Install and load packages ####
+install.packages('car'); library(car) # companion to applied regression
+install.packages('ggplot2'); library(ggplot2) # plotting
+install.packages('ggpubr'); library(ggpubr) # plot aesthetics
+install.packages('piecewiseSEM'); library(piecewiseSEM) # structural equation modeling
+install.packages('vegan'); library(vegan) # community ecology package
+install.packages('tidyr'); library(tidyr) # data manipulation
+install.packages('dplyr'); library(dplyr) # data manipulation
+install.packages('sf'); library(sf) # for map. 
+install.packages('leaflet'); library(leaflet) # for map. 
+install.packages('ggmap'); library(ggmap) # for map. 
+
 #### Create standard error function ####
 se = function(x){
    sd(x) / sqrt(length(x))
@@ -43,8 +47,8 @@ plot.theme <- theme(
 # set working directory to wherever you have saved the raw data files
 setwd("~/downloads") # probably your downloads folder. Use \ for Windows machine.
 # community data
-## Biomass in g of organisms identified in the mussel bed matrix within experimental cages.
-## Also includes percent cover of algae in each experimental cage as measured from photographs of experimental cages. Calculated using ImageJ image analysis software.
+## Biomass in g of organisms identified in the mussel bed matrix within experimental cages. 
+## Also includes percent cover of algae in each experimental cage as measured from photographs at the conclusion of the experiment, calculated using ImageJ image analysis software.
 comm_data <-  read.csv('Contolini_Palkovacs_community_data.csv')
 # mussel data
 ## Length in mm of drilled, loose, and remaining mussels from experimental cages
@@ -133,6 +137,21 @@ summary(psem(
 ## first two cols are ID cols; exclude them in the simper analysis.
 comm_trtmnts <- comm_data$trtmnt
 summary(simper(comm_data[,3:42], comm_trtmnts))
+
+#### Figure 1-ish map ####
+
+bbox <- c(-123, 34, -119, 38) # bounding box
+cen_cal_map <- get_stamenmap(bbox, zoom = 7) # accesses a tile server for Stamen maps and downloads/stitches map tiles/formats a map image. 
+ggmap(cen_cal_map) 
+
+# trying quick map
+study_sites = data.frame(site.name = c('Santa Cruz', 'Hopkins','Soberanes','Lompoc')
+                       , lat = c(36.94851473, 36.62101733, 36.44787, 34.71905679)
+                       , lon = c(-122.0648337,-121.9070136, -121.92874, -120.6087994))
+
+qmap(location = bbox, zoom = 7, source = 'stamen', maptype = "toner-lite", color = 'bw') + 
+   geom_point(aes(x = lon, y = lat), size = 4, shape = c(16, 18, 17, 16), 
+              color = c('black','dodgerblue3','maroon','goldenrod3'), data = study_sites)
 
 #### Figure 2 ####
 ## Figure 2a differences in mussel bed structure.
